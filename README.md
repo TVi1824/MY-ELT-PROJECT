@@ -15,14 +15,3 @@ Dữ liệu được vận hành qua các bước:
 * **Database**: PostgreSQL
 * **Tools**: Docker, n8n
 * **BI Tool**: Looker Studio
-
-## 4. Key Business Insights
-Dashboard cung cấp các chỉ số quan trọng (KPIs):
-* **Total Units Sold**: Theo dõi sản lượng bán ra toàn hệ thống.
-* **Top Performing Products**: Xác định các mặt hàng chủ lực.
-* **Daily Sales Trend**: Nhận diện các biến động doanh số theo thời gian để tối ưu kho vận.
-
-## 5. How to Run
-1. `docker-compose up -d` để khởi động hạ tầng.
-2. Cài đặt thư viện: `pip install -r requirements.txt`.
-3. Chạy script sinh dữ liệu: `python elt/generate_data.py`.
