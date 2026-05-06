@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # 1. Khởi tạo Bể chứa Database (PostgreSQL)
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME} 
+    ports:
+      - "5432:5432"                 
+    volumes:
+      - pg_data:/var/lib/postgresql/data # Lưu dữ liệu vĩnh viễn dù có tắt máy
+      - ./database:/docker-entrypoint-initdb.d # Liên kết thư mục 'database'
+
+  # 2. Khởi tạo Đường ống (n8n)
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: n8n_app
+    ports:
+      - "5678:5678"                 # Giao diện n8n sẽ chạy ở cổng 5678
+    environment:
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh # Cài múi giờ Việt Nam
+      - TZ=Asia/Ho_Chi_Minh
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false   # Tắt chặn quyền đọc file bên ngoài
+    volumes:
+      - n8n_data:/home/node/.n8n    # Lưu lại các workflow bạn đã vẽ, tắt máy không bị mất
+      - ./elt:/home/node/.n8n-files               # Quan trọng: Nối thư mục 'elt' trên máy bạn vào trong n8n
+    depends_on:
+      - postgres                    # Bắt buộc chờ Postgres chạy xong thì n8n mới được chạy
+
+  # 3. Khởi tạo Kính lúp (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_tool
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}             
+    ports:
+      - "5050:80"                   
+    depends_on:
+      - postgres
+
+# Khai báo không gian lưu trữ ảo cho Docker
+volumes:
+  pg_data:
+  n8n_data:
