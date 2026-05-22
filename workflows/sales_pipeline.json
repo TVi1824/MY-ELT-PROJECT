@@ -1,0 +1,901 @@
+{
+  "name": "Main ELT Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "TRUNCATE TABLE source.sales, source.customers, source.products;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -112,
+        0
+      ],
+      "id": "06f3d39e-502a-4297-9dd6-7b529e5704fc",
+      "name": "Truncate source table",
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/sales_data.csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        0
+      ],
+      "id": "27c4cd9e-518c-4b62-bbc1-b6b17eca84e1",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        288,
+        0
+      ],
+      "id": "31be952e-667e-4d3c-aa8e-148a414f99a6",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "batchSize": 2,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        496,
+        0
+      ],
+      "id": "536056a8-f2b3-4794-a318-57c7a018b4fd",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "source",
+          "mode": "list",
+          "cachedResultName": "source"
+        },
+        "table": {
+          "__rl": true,
+          "value": "sales",
+          "mode": "list",
+          "cachedResultName": "sales"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "quantity": 0
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "transaction_id",
+              "displayName": "transaction_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "product_id",
+              "displayName": "product_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transaction_date",
+              "displayName": "transaction_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        64
+      ],
+      "id": "96a34b35-647f-491d-9d25-152351e84118",
+      "name": "Load to source_sales",
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_loaded FROM source.sales;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        704,
+        -96
+      ],
+      "id": "2dc26da9-9924-436a-add8-ed7eef3542c8",
+      "name": "Verify Load Count",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy con số tổng dòng từ Node trước (Verify Load Count)\nconst total_loaded = $input.first().json.total_loaded;\n\n// Kiểm tra: Nếu không có dòng nào\nif (total_loaded == 0) {\n    // Ném ra một lỗi cứng để ngắt workflow, Error Trigger sẽ hứng lấy\n    throw new Error(\"File dữ liệu trống hoặc quá trình Load thất bại (0 dòng)!\");\n}\n\n// Nếu có dữ liệu (> 0), cho phép dữ liệu đi tiếp sang node sau\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -96
+      ],
+      "id": "a81da1f0-8694-4ca2-bd3d-a086daa81f1f",
+      "name": "Checkpoint #1: File Check"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy số lượng dòng bị NULL từ node Postgres trước đó\nconst null_count = $input.first().json.null_count;\n\n// Ngưỡng chấp nhận rác (ví dụ tối đa 5 dòng rác)\nconst threshold = 5;\n\nif (null_count > threshold) {\n    // Nếu quá nhiều rác, tung lỗi để ngắt hệ thống\n    throw new Error(`Dữ liệu rác quá nhiều (${null_count} dòng NULL). Vui lòng kiểm tra lại file nguồn!`);\n}\n\n// Nếu lượng rác trong mức cho phép, cho dữ liệu đi tiếp\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        336
+      ],
+      "id": "0f0fb452-ac01-4bbd-a9af-84dc9d022510",
+      "name": "Checkpoint #2: Validation"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DROP TABLE IF EXISTS staging.sales;\n\nCREATE TABLE staging.sales AS\nSELECT \n    transaction_id,\n    customer_id,\n    product_id,\n    CAST(quantity AS INT) AS quantity,\n    TO_DATE(transaction_date, 'YYYY-MM-DD') AS transaction_date\nFROM source.sales\nWHERE customer_id IS NOT NULL AND customer_id != ''\n  AND product_id IS NOT NULL AND product_id != '';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -112,
+        336
+      ],
+      "id": "88e2d1f4-a8ca-40d8-abe7-6b8bad98e826",
+      "name": "Create staging_clean_sales",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS valid_records FROM staging.sales;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        96,
+        336
+      ],
+      "id": "0f2b6f32-b01a-406b-bbaa-16b711dffde0",
+      "name": "Checkpoint #3: Quality Funnel",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS null_count \nFROM source.sales \nWHERE customer_id IS NULL OR customer_id = '' \n   OR product_id IS NULL OR product_id = '';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1024,
+        112
+      ],
+      "id": "b9299e39-768d-436a-8cb3-b3fe5b98be23",
+      "name": "Check Critical NULLs",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dw.dim_date (date_key, full_date, day, month, year, quarter)\nSELECT DISTINCT\n    TO_CHAR(transaction_date, 'YYYYMMDD')::INT AS date_key,\n    transaction_date,\n    EXTRACT(DAY FROM transaction_date),\n    EXTRACT(MONTH FROM transaction_date),\n    EXTRACT(YEAR FROM transaction_date),\n    EXTRACT(QUARTER FROM transaction_date)\nFROM staging.sales\nON CONFLICT (date_key) DO NOTHING;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        304,
+        336
+      ],
+      "id": "c864c9dc-b811-4a73-9245-96ec4f3a1ae8",
+      "name": "Load dim_date",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dw.dim_customer (customer_id)\nSELECT DISTINCT customer_id \nFROM staging.sales\nON CONFLICT (customer_id) DO NOTHING;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        512,
+        336
+      ],
+      "id": "0e8e1f36-d244-4e3c-9100-672b2749f426",
+      "name": "Load dim_customer",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dw.dim_product (product_id)\nSELECT DISTINCT product_id \nFROM staging.sales\nON CONFLICT (product_id) DO NOTHING;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        336
+      ],
+      "id": "a2ade78c-6053-43b2-9ce6-60c3c8cd82f2",
+      "name": "Load dim_product",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT customer_id FROM staging.sales;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        928,
+        336
+      ],
+      "id": "20a3e4ff-d041-43f9-b5e8-e26380a3c116",
+      "name": "Get Unique Countries",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1136,
+        336
+      ],
+      "id": "bad89a93-8279-4e83-89b4-7faa9ccf9928",
+      "name": "Loop Over Countries"
+    },
+    {
+      "parameters": {
+        "url": "=https://restcountries.com/v3.1/alpha/{{ $json.customer_id == 'C001' ? 'vn' : 'us' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1280,
+        464
+      ],
+      "id": "a45e0564-8213-45e0-b222-e7d07b7b3584",
+      "name": "HTTP Request",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy dữ liệu từ item đầu tiên\nconst apiResponse = $input.first().json;\n\n// Trả về định dạng gọn gàng (đã bỏ [0])\nreturn {\n    country_code: apiResponse.cca2,\n    country_name: apiResponse.name.common,\n    region: apiResponse.region\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        464
+      ],
+      "id": "23fd08b9-6f9f-42cb-a6b1-99da4857dec0",
+      "name": "Preprocess Country API data"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dw.dim_country (country_code, country_name, region)\nVALUES ('{{ $json.country_code }}', '{{ $json.country_name }}', '{{ $json.region }}')\nON CONFLICT (country_code) \nDO UPDATE SET \n    country_name = EXCLUDED.country_name, \n    region = EXCLUDED.region;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1696,
+        464
+      ],
+      "id": "fd5bb405-af24-4943-bcae-fa573b2c0055",
+      "name": "Load dim_country",
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as orphan_count\nFROM staging.sales s\nLEFT JOIN dw.dim_customer c ON s.customer_id = c.customer_id\nLEFT JOIN dw.dim_product p ON s.product_id = p.product_id\nWHERE c.customer_id IS NULL OR p.product_id IS NULL;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1248,
+        -80
+      ],
+      "id": "1cdcf24d-a40e-44b4-be05-b0208013fcdb",
+      "name": "Check Orphans",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const orphan_count = $input.first().json.orphan_count;\n\nif (orphan_count > 0) {\n    throw new Error(`CẢNH BÁO: Phát hiện ${orphan_count} dòng dữ liệu mồ côi. Không thể tạo bảng Fact!`);\n}\n\n// Nếu = 0 (dữ liệu toàn vẹn), cho đi tiếp\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        -80
+      ],
+      "id": "176bfd6b-6599-420b-8504-b1959c9b4da7",
+      "name": "Checkpoint #4: Validation"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dw.fact_sales (transaction_id, date_key, customer_id, product_id, quantity)\nSELECT DISTINCT ON (s.transaction_id)\n    s.transaction_id,\n    TO_CHAR(s.transaction_date, 'YYYYMMDD')::INT AS date_key,\n    s.customer_id,\n    s.product_id,\n    s.quantity\nFROM staging.sales s\nORDER BY s.transaction_id, s.transaction_date DESC\nON CONFLICT (transaction_id) \nDO UPDATE SET \n    quantity = EXCLUDED.quantity,\n    date_key = EXCLUDED.date_key;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1696,
+        -80
+      ],
+      "id": "700386b0-aff0-46ac-b1a3-8bffb616797c",
+      "name": "Load fact_sales",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Nếu bạn chỉ có cột quantity (số lượng)\nSELECT SUM(quantity) as total_quantity FROM dw.fact_sales;\n\n-- Nếu bảng dim_product của bạn có cột unit_price, hãy dùng:\n-- SELECT SUM(f.quantity * p.unit_price) as total_revenue \n-- FROM dw.fact_sales f \n-- JOIN dw.dim_product p ON f.product_id = p.product_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1344,
+        224
+      ],
+      "id": "c4311d80-936e-4f82-8589-9d47b4b0d909",
+      "name": "Check Revenue",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const total_quantity = $input.first().json.total_quantity;\n\n// Kiểm tra tính hợp lý của con số kinh doanh\nif (total_quantity <= 0) {\n    throw new Error(`LỖI NGHIỆP VỤ: Tổng sản lượng sau khi Load là ${total_quantity}. Con số này không hợp lệ!`);\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        224
+      ],
+      "id": "0a66443b-b05a-426b-bc22-c8e835521c43",
+      "name": "Checkpoint #5: Validation"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit.audit_log (event_name, status, description)\nVALUES (\n    'ELT_SALES_PIPELINE', \n    'SUCCESS', \n    'Pipeline hoàn tất thành công. Tổng sản lượng: ' || '{{ $node[\"Check Revenue\"].json[\"total_quantity\"] }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1760,
+        224
+      ],
+      "id": "f79f1078-def0-4dfe-b6cd-ee8f554132d8",
+      "name": "Audit Logging",
+      "credentials": {
+        "postgres": {
+          "id": "z5FAM5u1j9av8rL4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "nguyenvii1824@gmail.com",
+        "subject": "[Hệ thống ELT] Báo cáo: Cập nhật kho dữ liệu THÀNH CÔNG",
+        "message": "=<h3>Thông báo vận hành hệ thống ELT</h3>\n<p>Chào bạn, quy trình cập nhật dữ liệu vào Data Warehouse đã hoàn tất thành công.</p>\n<ul>\n    <li><b>Thời gian hoàn tất:</b> {{ $now.format('HH:mm:ss dd/MM/yyyy') }}</li>\n    <li><b>Tổng sản lượng:</b> {{ $node[\"Check Revenue\"].json[\"total_quantity\"] }}</li>\n    <li><b>Trạng thái:</b> Sẵn sàng cho báo cáo Power BI/Tableau.</li>\n</ul>\n<p><i>Đây là email tự động từ hệ thống n8n.</i></p>",
+        "options": {
+          "appendAttribution": false,
+          "bccList": "tgvie184@gmail.com",
+          "senderName": "Data Warehouse Report"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1968,
+        224
+      ],
+      "id": "347d08e4-9ce7-4482-9699-e6b8268841da",
+      "name": "Gmail success",
+      "webhookId": "8429df5d-ad8d-4cc8-8154-1049541431a1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "7Zq6ZbnCf1aMuW1n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -320,
+        0
+      ],
+      "id": "2b5a297e-16e0-449f-ac46-5c9fe8532271",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Truncate source table": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Verify Load Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load to source_sales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load to source_sales": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Load Count": {
+      "main": [
+        [
+          {
+            "node": "Checkpoint #1: File Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkpoint #1: File Check": {
+      "main": [
+        [
+          {
+            "node": "Check Critical NULLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkpoint #2: Validation": {
+      "main": [
+        [
+          {
+            "node": "Create staging_clean_sales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create staging_clean_sales": {
+      "main": [
+        [
+          {
+            "node": "Checkpoint #3: Quality Funnel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Critical NULLs": {
+      "main": [
+        [
+          {
+            "node": "Checkpoint #2: Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkpoint #3: Quality Funnel": {
+      "main": [
+        [
+          {
+            "node": "Load dim_date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dim_date": {
+      "main": [
+        [
+          {
+            "node": "Load dim_customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dim_customer": {
+      "main": [
+        [
+          {
+            "node": "Load dim_product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dim_product": {
+      "main": [
+        [
+          {
+            "node": "Get Unique Countries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Unique Countries": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Countries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Countries": {
+      "main": [
+        [
+          {
+            "node": "Check Orphans",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Preprocess Country API data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preprocess Country API data": {
+      "main": [
+        [
+          {
+            "node": "Load dim_country",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dim_country": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Countries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Orphans": {
+      "main": [
+        [
+          {
+            "node": "Checkpoint #4: Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkpoint #4: Validation": {
+      "main": [
+        [
+          {
+            "node": "Load fact_sales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load fact_sales": {
+      "main": [
+        [
+          {
+            "node": "Check Revenue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Revenue": {
+      "main": [
+        [
+          {
+            "node": "Checkpoint #5: Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkpoint #5: Validation": {
+      "main": [
+        [
+          {
+            "node": "Audit Logging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Logging": {
+      "main": [
+        [
+          {
+            "node": "Gmail success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Truncate source table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "97995337-afab-4dfa-961b-069354fe3b65",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0e3a891260fe4fbb7ad54a69bc30bebe710d83950e7a76d058c55d3515b6f81c"
+  },
+  "id": "TIkIuYGjFH0s4qgS",
+  "tags": []
+}
