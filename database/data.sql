@@ -1,10 +1,8 @@
--- 1. TẠO CÁC SCHEMA (Khu vực phân vùng)
 CREATE SCHEMA IF NOT EXISTS source;
 CREATE SCHEMA IF NOT EXISTS staging;
 CREATE SCHEMA IF NOT EXISTS warehouse;
 CREATE SCHEMA IF NOT EXISTS audit;
 
--- 2. TẠO BẢNG KHÁCH HÀNG (Trong khu vực source)
 CREATE TABLE IF NOT EXISTS source.customers (
     customer_id VARCHAR(50),
     customer_name VARCHAR(100),
@@ -12,7 +10,6 @@ CREATE TABLE IF NOT EXISTS source.customers (
     country VARCHAR(50)
 );
 
--- 3. TẠO BẢNG SẢN PHẨM (Trong khu vực source)
 CREATE TABLE IF NOT EXISTS source.products (
     product_id VARCHAR(50),
     product_name VARCHAR(100),
@@ -20,7 +17,6 @@ CREATE TABLE IF NOT EXISTS source.products (
     price DECIMAL(10,2)
 );
 
--- 4. TẠO BẢNG GIAO DỊCH BÁN HÀNG (Trong khu vực source)
 CREATE TABLE IF NOT EXISTS source.sales (
     transaction_id VARCHAR(50),
     customer_id VARCHAR(50),
@@ -29,7 +25,6 @@ CREATE TABLE IF NOT EXISTS source.sales (
     transaction_date VARCHAR(50)
 );
 
--- 5. NẠP DỮ LIỆU MẪU (Sample Data)
 INSERT INTO source.customers (customer_id, customer_name, email, country) VALUES
 ('C001', 'Nguyen Van A', 'a@gmail.com', 'Vietnam'),
 ('C002', 'John Doe', 'john@yahoo.com', 'USA'),
@@ -50,22 +45,20 @@ INSERT INTO source.sales (transaction_id, customer_id, product_id, quantity, tra
 CREATE SCHEMA IF NOT EXISTS dw;
 
 CREATE TABLE IF NOT EXISTS dw.dim_date (
-    date_key INT PRIMARY KEY,         -- Ví dụ: 20260501
-    full_date DATE UNIQUE,            -- Ví dụ: 2026-05-01
+    date_key INT PRIMARY KEY,         
+    full_date DATE UNIQUE,           
     day INT,
     month INT,
     year INT,
     quarter INT
 );
 
--- Tạo bảng chiều Khách hàng
 CREATE TABLE IF NOT EXISTS dw.dim_customer (
     customer_id VARCHAR(50) PRIMARY KEY,
     customer_name VARCHAR(255),
     country_code VARCHAR(10)
 );
 
--- Tạo bảng chiều Sản phẩm
 CREATE TABLE IF NOT EXISTS dw.dim_product (
     product_id VARCHAR(50) PRIMARY KEY,
     product_name VARCHAR(255),
@@ -73,9 +66,9 @@ CREATE TABLE IF NOT EXISTS dw.dim_product (
 );
 
 CREATE TABLE IF NOT EXISTS dw.dim_country (
-    country_code VARCHAR(10) PRIMARY KEY, -- Ví dụ: VN, US
-    country_name VARCHAR(100),            -- Ví dụ: Vietnam, United States
-    region VARCHAR(50)                    -- Ví dụ: Asia, Americas
+    country_code VARCHAR(10) PRIMARY KEY, 
+    country_name VARCHAR(100),            
+    region VARCHAR(50)                   
 );
 
 CREATE TABLE IF NOT EXISTS dw.fact_sales (
@@ -115,9 +108,7 @@ SELECT
     f.transaction_id,
     f.quantity,
     d.full_date,
-    -- Tự động lấy tên tháng từ ngày (ví dụ: 'May')
     TO_CHAR(d.full_date, 'Month') AS month_name, 
-    -- Tự động trích xuất năm từ ngày (ví dụ: 2026)
     EXTRACT(YEAR FROM d.full_date) AS year,      
     c.customer_name,
     p.product_name,
@@ -146,17 +137,14 @@ FROM dw.fact_sales f
 LEFT JOIN dw.dim_date d ON f.date_key = d.date_key
 LEFT JOIN dw.dim_customer c ON f.customer_id = c.customer_id
 LEFT JOIN dw.dim_product p ON f.product_id = p.product_id
-LEFT JOIN dw.dim_country co ON c.country_code = co.country_code;-- Đổi hết thành LEFT JOIN
+LEFT JOIN dw.dim_country co ON c.country_code = co.country_code;
 
 SELECT count(*) FROM dw.v_sales_report;
 
--- Kiểm tra danh sách khách hàng hiện có
 SELECT * FROM dw.dim_customer;
 
--- Kiểm tra danh sách sản phẩm hiện có
 SELECT * FROM dw.dim_product;
 
--- 1. Cập nhật tên và danh mục cho Bảng Sản Phẩm (dim_product)
 UPDATE dw.dim_product SET product_name = 'Laptop Gaming', category = 'Điện tử' WHERE product_id = 'P001';
 UPDATE dw.dim_product SET product_name = 'Chuột Không Dây', category = 'Phụ kiện' WHERE product_id = 'P002';
 UPDATE dw.dim_product SET product_name = 'Bàn Phím Cơ', category = 'Phụ kiện' WHERE product_id = 'P003';
@@ -165,7 +153,6 @@ UPDATE dw.dim_product SET product_name = 'Tai Nghe Noise Cancelling', category =
 UPDATE dw.dim_product SET product_name = 'Loa Bluetooth', category = 'Âm thanh' WHERE product_id = 'P006';
 UPDATE dw.dim_product SET product_name = 'Ổ Cứng SSD', category = 'Lưu trữ' WHERE product_id = 'P007';
 
--- 2. Cập nhật Bảng Khách Hàng (dim_customer) - Sử dụng Update hàng loạt
 UPDATE dw.dim_customer
 SET 
     customer_name = 'Khách hàng ' || SUBSTRING(customer_id FROM 2),
