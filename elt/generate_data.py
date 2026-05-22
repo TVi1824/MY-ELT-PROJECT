@@ -1,0 +1,40 @@
+import pandas as pd
+from faker import Faker
+import random
+from datetime import datetime, timedelta
+
+# Khởi tạo Faker
+fake = Faker()
+
+# Cấu hình số lượng dữ liệu
+NUM_ROWS = 2000  # Bạn có thể tăng lên 5000 hoặc 10000 tùy thích
+FILE_NAME = 'elt/sales_data.csv'
+
+# Danh sách mã sản phẩm cố định để Dashboard sau này có tính phân loại
+products = ['P001', 'P002', 'P003', 'P004', 'P005', 'P006', 'P007']
+# Danh sách mã khách hàng (giới hạn 50 mã để tạo sự lặp lại - khách cũ mua lại)
+customers = [f'C{str(i).zfill(3)}' for i in range(1, 51)]
+
+data = []
+
+print(f"🔄 Đang khởi tạo {NUM_ROWS} dòng dữ liệu...")
+
+for i in range(NUM_ROWS):
+    # Tạo ngày ngẫu nhiên trong vòng 1 năm qua
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=365)
+    random_date = fake.date_between(start_date=start_date, end_date=end_date)
+    
+    data.append({
+        "transaction_id": f"T{str(i+1).zfill(5)}", # Ví dụ: T00001
+        "customer_id": random.choice(customers),   # Chọn ngẫu nhiên từ danh sách khách hàng
+        "product_id": random.choice(products),     # Chọn ngẫu nhiên sản phẩm
+        "quantity": random.randint(1, 50),         # Số lượng mua từ 1 đến 50
+        "transaction_date": random_date.strftime('%Y-%m-%d')
+    })
+
+# Chuyển thành DataFrame và xuất file CSV
+df = pd.DataFrame(data)
+df.to_csv(FILE_NAME, index=False)
+
+print(f"✅ Hoàn tất! File '{FILE_NAME}' đã sẵn sàng tại thư mục hiện hành.")
