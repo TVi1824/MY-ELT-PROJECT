@@ -43,6 +43,7 @@ INSERT INTO source.sales (transaction_id, customer_id, product_id, quantity, tra
 
 
 CREATE SCHEMA IF NOT EXISTS dw;
+
 CREATE TABLE IF NOT EXISTS dw.dim_date (
     date_key INT PRIMARY KEY,         
     full_date DATE UNIQUE,           
