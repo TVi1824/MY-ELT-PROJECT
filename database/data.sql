@@ -140,9 +140,7 @@ LEFT JOIN dw.dim_product p ON f.product_id = p.product_id
 LEFT JOIN dw.dim_country co ON c.country_code = co.country_code;
 
 SELECT count(*) FROM dw.v_sales_report;
-
 SELECT * FROM dw.dim_customer;
-
 SELECT * FROM dw.dim_product;
 
 UPDATE dw.dim_product SET product_name = 'Laptop Gaming', category = 'Điện tử' WHERE product_id = 'P001';
