@@ -1,7 +1,7 @@
 # ELT Pipeline & Dashboard
 
 ## 1. Project Overview
-Dự án xây dựng hệ thống tự động hóa luồng dữ liệu (Data Pipeline) từ khâu giả lập dữ liệu giao dịch đến việc trực quan hóa trên Dashboard để hỗ trợ ra quyết định kinh doanh.
+Dự án xây dựng hệ thống tự động hóa luồng dữ liệu (Data Pipeline)
 
 ## 2. System Architecture
 Dữ liệu được vận hành qua các bước:
