@@ -3,10 +3,8 @@ from faker import Faker
 import random
 from datetime import datetime, timedelta
 
-# Khởi tạo Faker
 fake = Faker()
 
-# Cấu hình số lượng dữ liệu
 NUM_ROWS = 2000  
 FILE_NAME = 'elt/sales_data.csv'
 
@@ -30,7 +28,6 @@ for i in range(NUM_ROWS):
         "transaction_date": random_date.strftime('%Y-%m-%d')
     })
 
-# Chuyển thành DataFrame và xuất file CSV
 df = pd.DataFrame(data)
 df.to_csv(FILE_NAME, index=False)
 
