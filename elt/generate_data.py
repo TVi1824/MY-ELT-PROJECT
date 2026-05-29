@@ -12,7 +12,6 @@ products = ['P001', 'P002', 'P003', 'P004', 'P005', 'P006', 'P007']
 customers = [f'C{str(i).zfill(3)}' for i in range(1, 51)]
 
 data = []
-
 print(f"🔄 Đang khởi tạo {NUM_ROWS} dòng dữ liệu...")
 
 for i in range(NUM_ROWS):
