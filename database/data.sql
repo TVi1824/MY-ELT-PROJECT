@@ -2,6 +2,7 @@ CREATE SCHEMA IF NOT EXISTS source;
 CREATE SCHEMA IF NOT EXISTS staging;
 CREATE SCHEMA IF NOT EXISTS warehouse;
 CREATE SCHEMA IF NOT EXISTS audit;
+
 CREATE TABLE IF NOT EXISTS source.customers (
     customer_id VARCHAR(50),
     customer_name VARCHAR(100),
